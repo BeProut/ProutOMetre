@@ -4,7 +4,7 @@ from pathlib import Path
 
 def pre_build_action(source, target, env):
     # Adresse de ton serveur Hono
-    server_url = "http://localhost:3000/firmware/next-id"
+    server_url = "http://178.16.130.164:3025/firmware/next-id"
     print("------------------------------------")
     print("Fetching next firmware version from server...")
     print("------------------------------------")

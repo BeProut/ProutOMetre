@@ -31,7 +31,7 @@ def post_program_action(source, target, env):
     print(f"Firmware version: {firmware_version}")
 
     # Envoi du firmware sur le serveur Hono
-    url = f"http://localhost:3000/firmware/upload/{firmware_version}"
+    url = f"http://178.16.130.164:3025/firmware/upload/{firmware_version}"
     with open(bin_path, 'rb') as f:
         files = {'file': (bin_path.name, f)}
         try:
