@@ -1,6 +1,29 @@
-#include "modules/uuid/uuid_generator.h"
+#include <Preferences.h>
+#include "uuid_generator.h"
 
-String generateUUIDv4()
+void UUIDManager::init()
+{
+    preferences.begin("config", false);
+    _uuid = preferences.getString("uuid", "");
+    if (_uuid.length() == 0)
+    {
+        _uuid = generateUUIDv4();
+        preferences.putString("uuid", _uuid);
+        Serial.println("Nouveau UUID v4 généré : " + _uuid);
+    }
+    else
+    {
+        Serial.println("UUID existant : " + _uuid);
+    }
+    preferences.end();
+}
+
+String UUIDManager::getUUID()
+{
+    return _uuid;
+}
+
+String UUIDManager::generateUUIDv4()
 {
     uint8_t uuid[16];
     for (int i = 0; i < 16; i++)

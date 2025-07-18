@@ -1,27 +1,31 @@
-#include "modules/button/button_handler.h"
-#include <Arduino.h>
-#include "modules/ota/ota_updater.h"
-#include "modules/wifi/wifi_manager.h"
+#include "button_handler.h"
 
-int BUTTON_PIN = 4; 
+ButtonHandler::ButtonHandler(uint8_t buttonPin)
+    : _buttonPin(buttonPin), _lastButtonState(LOW), _countButtonPresses(0) {}
 
-int buttonState = 0;
-
-void initButton()
+void ButtonHandler::begin()
 {
-    pinMode(BUTTON_PIN, INPUT);
+    pinMode(_buttonPin, INPUT);
+    _lastButtonState = digitalRead(_buttonPin);
 }
 
-void checkButtonChange()
+bool ButtonHandler::checkButtonChange()
 {
-    int newButtonState = digitalRead(BUTTON_PIN);
-    if (newButtonState != buttonState)
+    int newButtonState = digitalRead(_buttonPin);
+    if (newButtonState != _lastButtonState)
     {
-        buttonState = newButtonState;
-        if (buttonState == HIGH)
+        _lastButtonState = newButtonState;
+
+        // Message local série
+        if (newButtonState == HIGH)
         {
-            Serial.println("Bouton pressé, vérification de mise à jour...");
-            checkAndUpdateFirmware();
+            Serial.println("Start pressed");
+        }
+        else
+        {
+            Serial.println("Stop pressed");
         }
     }
+
+    return (newButtonState == HIGH);
 }
