@@ -9,6 +9,7 @@
 #include <ArduinoJson.h>
 #include "modules/sensor/sensor_handler.h"
 #include "modules/led/led_controller.h"
+#include "modules/i2s_microphone/i2s_microphone_fake.h"
 
 UUIDManager uuidManager;
 LedController led;
@@ -18,6 +19,8 @@ ButtonHandler buttonHandler(BUTTON_PIN);
 SensorHandler mq135Sensor(MQ135_PIN, true);
 SensorHandler mq136Sensor(MQ136_PIN, true);
 SensorHandler mq4Sensor(MQ4_PIN, true);
+SensorHandler max4466Sensor(MAX4466_PIN, true);
+I2SMicrophoneFake micFake(&bleManager);
 
 void setup()
 {
@@ -32,6 +35,7 @@ void setup()
   mq135Sensor.begin();
   mq136Sensor.begin();
   mq4Sensor.begin();
+  micFake.startRecording();
 }
 
 void loop()
@@ -39,17 +43,27 @@ void loop()
   led.update();
   bleManager.loop();
   static unsigned long lastSend = 0;
+  bool buttonPressed = buttonHandler.checkButtonChange();
   if (bleManager.isConnected() && millis() - lastSend >= 500)
   {
     lastSend = millis();
     int mq135 = mq135Sensor.read();
     int mq136 = mq136Sensor.read();
     int mq4 = mq4Sensor.read();
+    int max4466 = max4466Sensor.read();
     int micAnalog = random(0, 100);
     int micLevel = random(0, 100);
-    bool buttonPressed = buttonHandler.checkButtonChange();
 
-    bleManager.notifyUpdateState(mq135, mq136, mq4, micAnalog, micLevel, buttonPressed);
+    bleManager.notifyUpdateState(mq135, mq136, mq4, max4466, micAnalog, micLevel, buttonPressed);
   }
+
+  micFake.update();
+
+  if (buttonPressed)
+  {
+    micFake.isRecording() ? micFake.stopRecording() : micFake.startRecording();
+    Serial.println(micFake.isRecording() ? "Enregistrement démarré" : "Enregistrement arrêté");
+  }
+
   delay(100);
 }

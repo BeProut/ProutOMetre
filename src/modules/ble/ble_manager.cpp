@@ -5,11 +5,11 @@
 
 const char *BLEManager::SERVICE_UUID = "12345678-1234-1234-1234-123456789abc";
 const char *BLEManager::CHARACTERISTIC_UUID = "abcd1234-5678-90ab-cdef-1234567890ab";
+const char *BLEManager::AUDIO_CHARACTERISTIC_UUID = "dcba4321-8765-ba09-fedc-ba0987654321";
 
 BLEManager::BLEManager(LedController &led, const char *deviceName)
     : _deviceName(deviceName), _led(led), _pServer(nullptr), _pCharacteristic(nullptr),
       _deviceConnected(false), _advertising(false) {}
-
 void BLEManager::begin()
 {
     BLEDevice::init(_deviceName);
@@ -18,11 +18,17 @@ void BLEManager::begin()
 
     BLEService *pService = _pServer->createService(SERVICE_UUID);
 
+    // Caractéristique JSON existante
     _pCharacteristic = pService->createCharacteristic(
         CHARACTERISTIC_UUID,
         BLECharacteristic::PROPERTY_NOTIFY);
-
     _pCharacteristic->addDescriptor(new BLE2902());
+
+    // Nouvelle caractéristique audio
+    _pAudioCharacteristic = pService->createCharacteristic(
+        AUDIO_CHARACTERISTIC_UUID,
+        BLECharacteristic::PROPERTY_NOTIFY);
+    _pAudioCharacteristic->addDescriptor(new BLE2902());
 
     pService->start();
     startAdvertising();
@@ -33,6 +39,7 @@ void BLEManager::notifyUpdateState(
     int mq135,
     int mq136,
     int mq4,
+    int max4466,
     int micAnalog,
     int micLevel,
     bool buttonPressed)
@@ -113,5 +120,19 @@ void BLEManager::updateLed()
     else
     {
         _led.set(LED_BLINK_SOS);
+    }
+}
+
+void BLEManager::sendAudioData(const uint8_t *data, size_t length)
+{
+    Serial.printf("Envoi de données audio : %zu octets\n", length);
+    const size_t chunkSize = 20;
+    for (size_t offset = 0; offset < length; offset += chunkSize)
+    {
+        size_t toSend = (length - offset) < chunkSize ? (length - offset) : chunkSize;
+        _pAudioCharacteristic->setValue((uint8_t *)(data + offset), toSend);
+        _pAudioCharacteristic->notify();
+        Serial.printf("Audio data sent: %zu bytes\n", toSend);
+        delay(10);
     }
 }

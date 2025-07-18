@@ -15,11 +15,13 @@ public:
         int mq135,
         int mq136,
         int mq4,
+        int max4466,
         int micAnalog,
         int micLevel,
         bool buttonPressed);
     bool isConnected() const;
     void loop();
+    void sendAudioData(const uint8_t *data, size_t length);
 
 private:
     class ServerCallbacks : public BLEServerCallbacks
@@ -39,6 +41,8 @@ private:
     const char *_deviceName;
     BLEServer *_pServer;
     BLECharacteristic *_pCharacteristic;
+    BLECharacteristic *_pAudioCharacteristic;
+
     bool _deviceConnected;
     bool _advertising;
 
@@ -46,6 +50,7 @@ private:
 
     static const char *SERVICE_UUID;
     static const char *CHARACTERISTIC_UUID;
+    static const char *AUDIO_CHARACTERISTIC_UUID;
 };
 
 #endif // BLE_MANAGER_H
