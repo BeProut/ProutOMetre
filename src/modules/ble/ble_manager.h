@@ -2,32 +2,49 @@
 #define BLE_MANAGER_H
 
 #include <BLEDevice.h>
-#include <BLEUtils.h>
 #include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLEAdvertising.h>
 #include "modules/led/led_controller.h"
+#include <string>
+#include "modules/display/display_manager.h"
 
 class BLEManager
 {
 public:
-    BLEManager(LedController &led, const char *deviceName = "ProutOMetre");
+    explicit BLEManager(LedController &led, DisplayManager &display, const std::string &deviceName = "ProutOMetre");
+
     void begin();
-    void notifyUpdateState(
-        int mq135,
-        int mq136,
-        int mq4,
-        int max4466,
-        int micAnalog,
-        int micLevel,
-        bool buttonPressed);
+    void notifyUpdateState(int mq135, int mq136, int mq4, int max4466, int micAnalog, int micLevel, bool buttonPressed);
     bool isConnected() const;
+    std::string getClientDeviceName() const;
     void loop();
-    void sendAudioData(const uint8_t *data, size_t length);
 
 private:
+    static constexpr const char *SERVICE_UUID = "12345678-1234-1234-1234-123456789abc";
+    static constexpr const char *CHARACTERISTIC_UUID = "abcd1234-5678-90ab-cdef-1234567890ab";
+    static constexpr const char *DEVICE_NAME_UUID = "efab5678-9abc-def0-1234-567890abcdef";
+
+    std::string _deviceName;
+    LedController &_led;
+    DisplayManager &_display;
+
+    BLEServer *_pServer = nullptr;
+    BLECharacteristic *_pCharacteristic = nullptr;
+    BLECharacteristic *_pDeviceNameCharacteristic = nullptr;
+
+    bool _deviceConnected = false;
+    bool _advertising = false;
+    std::string _clientDeviceName;
+
+    void startAdvertising();
+    void updateLed();
+
+    // Callbacks imbriqués
     class ServerCallbacks : public BLEServerCallbacks
     {
     public:
-        ServerCallbacks(BLEManager *parent);
+        explicit ServerCallbacks(BLEManager *parent);
         void onConnect(BLEServer *pServer) override;
         void onDisconnect(BLEServer *pServer) override;
 
@@ -35,22 +52,15 @@ private:
         BLEManager *_parent;
     };
 
-    void startAdvertising();
-    void updateLed();
+    class CharacteristicCallbacks : public BLECharacteristicCallbacks
+    {
+    public:
+        explicit CharacteristicCallbacks(BLEManager *parent);
+        void onWrite(BLECharacteristic *pCharacteristic) override;
 
-    const char *_deviceName;
-    BLEServer *_pServer;
-    BLECharacteristic *_pCharacteristic;
-    BLECharacteristic *_pAudioCharacteristic;
-
-    bool _deviceConnected;
-    bool _advertising;
-
-    LedController &_led;
-
-    static const char *SERVICE_UUID;
-    static const char *CHARACTERISTIC_UUID;
-    static const char *AUDIO_CHARACTERISTIC_UUID;
+    private:
+        BLEManager *_parent;
+    };
 };
 
-#endif // BLE_MANAGER_H
+#endif

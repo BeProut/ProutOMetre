@@ -31,8 +31,6 @@ void I2SMicrophoneFake::stopRecording()
         return;
     _isRecording = false;
     _isDone = true;
-
-    _bleManager->sendAudioData(_buffer, _bytesRecorded);
 }
 
 void I2SMicrophoneFake::update()

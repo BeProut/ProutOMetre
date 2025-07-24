@@ -3,71 +3,63 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
-const char *BLEManager::SERVICE_UUID = "12345678-1234-1234-1234-123456789abc";
-const char *BLEManager::CHARACTERISTIC_UUID = "abcd1234-5678-90ab-cdef-1234567890ab";
-const char *BLEManager::AUDIO_CHARACTERISTIC_UUID = "dcba4321-8765-ba09-fedc-ba0987654321";
+BLEManager::BLEManager(LedController &led, DisplayManager &display, const std::string &deviceName)
+    : _led(led), _display(display), _deviceName(deviceName) {}
 
-BLEManager::BLEManager(LedController &led, const char *deviceName)
-    : _deviceName(deviceName), _led(led), _pServer(nullptr), _pCharacteristic(nullptr),
-      _deviceConnected(false), _advertising(false) {}
 void BLEManager::begin()
 {
-    BLEDevice::init(_deviceName);
+    BLEDevice::init(_deviceName.c_str());
     _pServer = BLEDevice::createServer();
     _pServer->setCallbacks(new ServerCallbacks(this));
 
     BLEService *pService = _pServer->createService(SERVICE_UUID);
 
-    // Caractéristique JSON existante
     _pCharacteristic = pService->createCharacteristic(
         CHARACTERISTIC_UUID,
         BLECharacteristic::PROPERTY_NOTIFY);
     _pCharacteristic->addDescriptor(new BLE2902());
 
-    // Nouvelle caractéristique audio
-    _pAudioCharacteristic = pService->createCharacteristic(
-        AUDIO_CHARACTERISTIC_UUID,
-        BLECharacteristic::PROPERTY_NOTIFY);
-    _pAudioCharacteristic->addDescriptor(new BLE2902());
+    _pDeviceNameCharacteristic = pService->createCharacteristic(
+        DEVICE_NAME_UUID,
+        BLECharacteristic::PROPERTY_WRITE);
+    _pDeviceNameCharacteristic->setCallbacks(new CharacteristicCallbacks(this));
 
     pService->start();
+
     startAdvertising();
+
     Serial.println("BLE server started, waiting for clients to connect...");
 }
 
-void BLEManager::notifyUpdateState(
-    int mq135,
-    int mq136,
-    int mq4,
-    int max4466,
-    int micAnalog,
-    int micLevel,
-    bool buttonPressed)
+void BLEManager::notifyUpdateState(int mq135, int mq136, int mq4, int max4466, int micAnalog, int micLevel, bool buttonPressed)
 {
     if (_deviceConnected && _pCharacteristic)
     {
-        StaticJsonDocument<200> doc;
+        StaticJsonDocument<300> doc;
         doc["mq135"] = mq135;
         doc["mq136"] = mq136;
         doc["mq4"] = mq4;
         doc["micAnalog"] = micAnalog;
         doc["micLevel"] = micLevel;
         doc["buttonPressed"] = buttonPressed;
+        doc["clientName"] = _clientDeviceName;
 
-        char buffer[256];
+        char buffer[350];
         size_t len = serializeJson(doc, buffer);
 
         _pCharacteristic->setValue((uint8_t *)buffer, len);
         _pCharacteristic->notify();
-
-        Serial.print("Notification envoyée : ");
-        Serial.println(buffer);
     }
 }
 
 bool BLEManager::isConnected() const
 {
     return _deviceConnected;
+}
+
+std::string BLEManager::getClientDeviceName() const
+{
+    return _clientDeviceName;
 }
 
 void BLEManager::loop()
@@ -87,10 +79,11 @@ void BLEManager::startAdvertising()
     pAdvertising->setMinPreferred(0x12);
     BLEDevice::startAdvertising();
     _advertising = true;
+
     Serial.println("Publicité BLE démarrée");
 }
 
-// ---- Callbacks ----
+// --- Callbacks ---
 
 BLEManager::ServerCallbacks::ServerCallbacks(BLEManager *parent) : _parent(parent) {}
 
@@ -106,9 +99,26 @@ void BLEManager::ServerCallbacks::onConnect(BLEServer *pServer)
 void BLEManager::ServerCallbacks::onDisconnect(BLEServer *pServer)
 {
     _parent->_deviceConnected = false;
+    _parent->_clientDeviceName.clear();
+
     Serial.println("Client déconnecté");
     _parent->startAdvertising();
     _parent->updateLed();
+}
+
+BLEManager::CharacteristicCallbacks::CharacteristicCallbacks(BLEManager *parent) : _parent(parent) {}
+
+void BLEManager::CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic)
+{
+    if (pCharacteristic->getUUID().toString() == DEVICE_NAME_UUID)
+    {
+        std::string value = pCharacteristic->getValue();
+        _parent->_clientDeviceName = value;
+
+        Serial.print("Nom du device client reçu : ");
+        Serial.println(_parent->_clientDeviceName.c_str());
+        _parent->_display.setDeviceName(_parent->_clientDeviceName.c_str());
+    }
 }
 
 void BLEManager::updateLed()
@@ -116,23 +126,12 @@ void BLEManager::updateLed()
     if (_deviceConnected)
     {
         _led.set(LED_BLINK);
+        _display.setStatus(DISPLAY_STATUS_CONNECTED);
     }
     else
     {
         _led.set(LED_BLINK_SOS);
-    }
-}
-
-void BLEManager::sendAudioData(const uint8_t *data, size_t length)
-{
-    Serial.printf("Envoi de données audio : %zu octets\n", length);
-    const size_t chunkSize = 20;
-    for (size_t offset = 0; offset < length; offset += chunkSize)
-    {
-        size_t toSend = (length - offset) < chunkSize ? (length - offset) : chunkSize;
-        _pAudioCharacteristic->setValue((uint8_t *)(data + offset), toSend);
-        _pAudioCharacteristic->notify();
-        Serial.printf("Audio data sent: %zu bytes\n", toSend);
-        delay(10);
+        _display.setStatus(DISPLAY_STATUS_WAITING_CONNECTION);
+        _display.setDeviceName("");
     }
 }
