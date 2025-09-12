@@ -1,5 +1,8 @@
-#ifndef VERSION_H
-#define VERSION_H
 
-#define FIRMWARE_VERSION 1
-#endif // VERSION_H
+// AUTO GENERATED FILE, DO NOT EDIT
+#ifndef VERSION
+    #define VERSION "1.0.5"
+#endif
+#ifndef BUILD_TIMESTAMP
+    #define BUILD_TIMESTAMP "2025-09-12 17:50:47.067105"
+#endif

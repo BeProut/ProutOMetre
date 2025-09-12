@@ -16,3 +16,4 @@ print(f"[INFO] Version récupérée : {version}")
 
 # Injecter dans le code
 env.Append(CPPDEFINES=[("FW_VERSION", f'"{version}"')])
+
