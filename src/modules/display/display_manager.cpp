@@ -1,251 +1,246 @@
 #include "display_manager.h"
 
-#define UPDATE_INTERVAL 100
-
 DisplayManager::DisplayManager()
-    : currentStatus(DISPLAY_STATUS_WAITING_CONNECTION),
-      lastUpdate(0),
-      animationCounter(0),
-      deviceName(""),
-      firmwareVersion("")
+{
+    display = nullptr;
+    lastUpdate = 0;
+    animationFrame = 0;
+    screenOn = true;
+}
+
+bool DisplayManager::init()
 {
     display = new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-}
 
-DisplayManager::~DisplayManager()
-{
-    delete display;
-}
-
-bool DisplayManager::begin()
-{
     if (!display->begin(SSD1306_SWITCHCAPVCC, I2C_ADDRESS))
     {
-        Serial.println(F("[DisplayManager] Échec de l'initialisation SSD1306"));
+        Serial.println("Erreur: Impossible d'initialiser l'écran OLED");
         return false;
     }
 
     display->clearDisplay();
     display->setTextColor(SSD1306_WHITE);
+    display->setTextSize(1);
     display->display();
 
-    Serial.println(F("[DisplayManager] Écran initialisé avec succès"));
+    Serial.println("DisplayManager: Écran OLED initialisé");
     return true;
 }
 
-void DisplayManager::setStatus(DisplayStatus status)
+void DisplayManager::update(FartDetector::DetectionResult result)
 {
-    if (currentStatus != status)
-    {
-        currentStatus = status;
-        animationCounter = 0;
-        Serial.printf("[DisplayManager] Changement de statut: %d\n", status);
-    }
-}
-
-void DisplayManager::setDeviceName(const String &name)
-{
-    deviceName = name;
-}
-
-void DisplayManager::setFirmwareVersion(const String &version)
-{
-    firmwareVersion = version;
-}
-
-void DisplayManager::update()
-{
-    unsigned long currentTime = millis();
-
-    if (currentTime - lastUpdate < UPDATE_INTERVAL)
-    {
+    if (!display || !screenOn)
         return;
-    }
 
-    lastUpdate = currentTime;
     display->clearDisplay();
 
-    switch (currentStatus)
+    if (result.isDetected)
     {
-    case DISPLAY_STATUS_WAITING_CONNECTION:
-        drawWaitingConnection();
-        break;
-
-    case DISPLAY_STATUS_CONNECTED:
-        drawConnectedStatus();
-        break;
-
-    case DISPLAY_STATUS_ERROR:
-        drawErrorStatus();
-        break;
-    }
-
-    display->display();
-}
-
-void DisplayManager::drawWaitingConnection()
-{
-    drawLoadingAnimation(64, 10, 3); // Animation plus grande, centrée
-
-    drawCenteredText("BeProut", 25, 2);       // Titre
-    drawCenteredText("En attente...", 40, 1); // Texte plus petit
-
-    if (firmwareVersion.length() > 0)
-    {
-        String versionText = "v" + firmwareVersion;
-        drawCenteredText(versionText, 50, 1);
-    }
-}
-
-void DisplayManager::drawConnectedStatus()
-{
-    display->fillCircle(120, 8, 3, SSD1306_WHITE);
-    display->setCursor(100, 5);
-    display->setTextSize(1);
-    display->print("BLE");
-
-    drawCenteredText("CONNECTE", 15, 2);
-
-    if (deviceName.length() > 0)
-    {
-        drawCenteredText("Appareil:", 35, 1);
-
-        if (deviceName.length() > 16)
-        {
-            drawScrollingText(deviceName, 45, 1);
-        }
-        else
-        {
-            drawCenteredText(deviceName, 45, 1);
-        }
+        drawHeader();
+        drawScore(result.totalScore);
+        drawIntensity(result.intensity);
+        drawCategory(result.category);
     }
     else
     {
-        drawCenteredText("Appareil inconnu", 40, 1);
+        drawNoDetection();
     }
 
-    display->setCursor(5, 55);
+    display->display();
+    lastUpdate = millis();
+}
+
+void DisplayManager::drawHeader()
+{
     display->setTextSize(1);
-    display->print("Actif");
+    display->setCursor(0, 0);
+    display->print("DETECTION GAZ");
 
-    int dotCount = (animationCounter / 5) % 4;
-    for (int i = 0; i < dotCount; i++)
-    {
-        display->print(".");
-    }
+    // Ligne séparatrice
+    display->drawLine(0, 10, SCREEN_WIDTH, 10, SSD1306_WHITE);
 }
 
-void DisplayManager::drawErrorStatus()
+void DisplayManager::drawScore(int score)
 {
-    drawCenteredText("ERREUR", 15, 2);
-    drawCenteredText("Probleme", 35, 1);
-    drawCenteredText("d'affichage", 45, 1);
+    // Titre
+    display->setTextSize(1);
+    display->setCursor(0, 15);
+    display->print("Score:");
+
+    // Score numérique grand
+    display->setTextSize(2);
+    display->setCursor(50, 13);
+    if (score < 10)
+        display->print("0");
+    display->print(score);
+    display->setTextSize(1);
+    display->print("/100");
+
+    // Barre de progression
+    drawProgressBar(0, 30, SCREEN_WIDTH - 20, 8, score, 100);
+
+    // Pourcentage à droite de la barre
+    display->setCursor(SCREEN_WIDTH - 18, 30);
+    display->print(score);
+    display->print("%");
 }
 
-void DisplayManager::drawLoadingAnimation(int x, int y, int radius)
+void DisplayManager::drawIntensity(int intensity)
 {
-    int frame = (animationCounter / 3) % 8;
+    display->setTextSize(1);
+    display->setCursor(0, 45);
+    display->print("Niveau: ");
 
-    for (int i = 0; i < 3; i++)
+    // Affichage des barres d'intensité
+    for (int i = 0; i < 5; i++)
     {
-        int brightness = 255;
-        if ((frame + i) % 8 < 4)
-        {
-            brightness = 100;
-        }
+        int x = 50 + (i * 12);
+        int y = 45;
 
-        int offset = i * (radius * 3);
-        if (brightness > 200)
+        if (i < intensity)
         {
-            display->fillCircle(x + offset - radius, y, radius, SSD1306_WHITE);
+            // Barre pleine
+            display->fillRect(x, y, 8, 8, SSD1306_WHITE);
         }
         else
         {
-            display->drawCircle(x + offset - radius, y, radius, SSD1306_WHITE);
+            // Barre vide
+            display->drawRect(x, y, 8, 8, SSD1306_WHITE);
         }
     }
 
-    animationCounter++;
+    // Chiffre à droite
+    display->setCursor(115, 45);
+    display->print(intensity);
+    display->print("/5");
 }
 
-void DisplayManager::drawCenteredText(const String &text, int y, int textSize)
+void DisplayManager::drawCategory(String category)
 {
-    display->setTextSize(textSize);
-    int textWidth = text.length() * 6 * textSize;
-    int x = (display->width() - textWidth) / 2;
-    display->setCursor(x, y);
-    display->print(removeAccents(text));
+    display->setTextSize(1);
+    display->setCursor(0, 57);
+    display->print("Type: ");
+    display->print(category);
 }
 
-void DisplayManager::drawScrollingText(const String &text, int y, int textSize)
+void DisplayManager::drawNoDetection()
 {
-    display->setTextSize(textSize);
+    display->setTextSize(1);
+    display->setCursor(0, 0);
+    display->print("MONITEUR GAZ");
 
-    int charWidth = 6 * textSize;
-    int textWidth = text.length() * charWidth;
-    int screenWidth = display->width();
+    // Animation de point clignotant
+    animationFrame++;
+    if (animationFrame > 60)
+        animationFrame = 0;
 
-    if (textWidth <= screenWidth)
+    display->setTextSize(2);
+    display->setCursor(25, 25);
+    display->print("STANDBY");
+
+    if (animationFrame < 30)
     {
-        drawCenteredText(removeAccents(text), y, textSize);
-        return;
+        display->fillCircle(100, 32, 3, SSD1306_WHITE);
     }
 
-    int scrollOffset = (animationCounter / 2) % (textWidth + screenWidth);
-    int x = screenWidth - scrollOffset;
+    display->setTextSize(1);
+    display->setCursor(15, 50);
+    display->print("En attente...");
+}
 
-    display->setCursor(x, y);
-    display->print(removeAccents(text));
+void DisplayManager::drawProgressBar(int x, int y, int width, int height, int value, int maxValue)
+{
+    // Bordure
+    display->drawRect(x, y, width, height, SSD1306_WHITE);
 
-    if (x + textWidth < screenWidth)
+    // Remplissage
+    int fillWidth = map(value, 0, maxValue, 0, width - 2);
+    if (fillWidth > 0)
     {
-        display->setCursor(x + textWidth + 10, y);
-        display->print(removeAccents(text));
+        display->fillRect(x + 1, y + 1, fillWidth, height - 2, SSD1306_WHITE);
     }
-
-    animationCounter++;
 }
 
 void DisplayManager::clear()
 {
-    display->clearDisplay();
-    display->display();
-}
-
-void DisplayManager::showMessage(const String &message, int duration)
-{
-    unsigned long startTime = millis();
-
-    while (millis() - startTime < duration)
+    if (display)
     {
         display->clearDisplay();
-        drawCenteredText(removeAccents(message), 25, 1);
         display->display();
-        delay(50);
     }
 }
 
-void DisplayManager::setBrightness(uint8_t brightness)
+void DisplayManager::turnOn()
 {
-    display->ssd1306_command(SSD1306_SETCONTRAST);
-    display->ssd1306_command(brightness);
+    screenOn = true;
+    if (display)
+    {
+        display->ssd1306_command(SSD1306_DISPLAYON);
+    }
 }
 
-String removeAccents(const String &input)
+void DisplayManager::turnOff()
 {
-    String output = input;
-    output.replace("é", "e");
-    output.replace("è", "e");
-    output.replace("ê", "e");
-    output.replace("à", "a");
-    output.replace("ù", "u");
-    output.replace("ç", "c");
-    output.replace("ô", "o");
-    output.replace("ï", "i");
-    output.replace("î", "i");
-    output.replace("É", "E");
-    output.replace("À", "A");
-    output.replace("Ç", "C");
-    // Ajoute d’autres si besoin
-    return output;
+    screenOn = false;
+    if (display)
+    {
+        display->ssd1306_command(SSD1306_DISPLAYOFF);
+    }
+}
+
+void DisplayManager::setBrightness(int level)
+{
+    if (display)
+    {
+        level = constrain(level, 0, 255);
+        display->ssd1306_command(SSD1306_SETCONTRAST);
+        display->ssd1306_command(level);
+    }
+}
+
+void DisplayManager::showCalibration()
+{
+    if (!display)
+        return;
+
+    display->clearDisplay();
+    display->setTextSize(1);
+    display->setCursor(15, 10);
+    display->print("CALIBRATION");
+
+    display->setTextSize(2);
+    display->setCursor(25, 30);
+    display->print("EN COURS");
+
+    // Animation de progression
+    for (int i = 0; i < 4; i++)
+    {
+        int x = 30 + (i * 15);
+        if ((millis() / 200) % 4 == i)
+        {
+            display->fillCircle(x, 50, 3, SSD1306_WHITE);
+        }
+        else
+        {
+            display->drawCircle(x, 50, 3, SSD1306_WHITE);
+        }
+    }
+
+    display->display();
+}
+
+void DisplayManager::showStatus(String message)
+{
+    if (!display)
+        return;
+
+    display->clearDisplay();
+    display->setTextSize(1);
+    display->setCursor(0, 0);
+    display->print("STATUS:");
+
+    display->setCursor(0, 20);
+    display->print(message);
+
+    display->display();
 }

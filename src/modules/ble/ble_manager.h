@@ -7,12 +7,11 @@
 #include <BLEAdvertising.h>
 #include "modules/led/led_controller.h"
 #include <string>
-#include "modules/display/display_manager.h"
 
 class BLEManager
 {
 public:
-    explicit BLEManager(LedController &led, DisplayManager &display, const std::string &deviceName = "ProutOMetre");
+    explicit BLEManager(LedController &led, const std::string &deviceName = "ProutOMetre");
 
     void begin();
     void notifyUpdateState(int mq135, int mq136, int mq4, int max4466, int micAnalog, int micLevel, bool buttonPressed);
@@ -27,7 +26,6 @@ private:
 
     std::string _deviceName;
     LedController &_led;
-    DisplayManager &_display;
 
     BLEServer *_pServer = nullptr;
     BLECharacteristic *_pCharacteristic = nullptr;

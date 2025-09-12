@@ -3,8 +3,8 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
-BLEManager::BLEManager(LedController &led, DisplayManager &display, const std::string &deviceName)
-    : _led(led), _display(display), _deviceName(deviceName) {}
+BLEManager::BLEManager(LedController &led, const std::string &deviceName)
+    : _led(led), _deviceName(deviceName) {}
 
 void BLEManager::begin()
 {
@@ -117,7 +117,6 @@ void BLEManager::CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteri
 
         Serial.print("Nom du device client reçu : ");
         Serial.println(_parent->_clientDeviceName.c_str());
-        _parent->_display.setDeviceName(_parent->_clientDeviceName.c_str());
     }
 }
 
@@ -126,12 +125,9 @@ void BLEManager::updateLed()
     if (_deviceConnected)
     {
         _led.set(LED_BLINK);
-        _display.setStatus(DISPLAY_STATUS_CONNECTED);
     }
     else
     {
         _led.set(LED_BLINK_SOS);
-        _display.setStatus(DISPLAY_STATUS_WAITING_CONNECTION);
-        _display.setDeviceName("");
     }
 }

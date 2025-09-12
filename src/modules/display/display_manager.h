@@ -4,55 +4,42 @@
 #include <Arduino.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <Wire.h>
-
-enum DisplayStatus
-{
-    DISPLAY_STATUS_WAITING_CONNECTION,
-    DISPLAY_STATUS_CONNECTED,
-    DISPLAY_STATUS_ERROR
-};
+#include "modules/fart_detector/fart_detector.h"
 
 class DisplayManager
 {
-public:
-    DisplayManager(); // 👈 constructeur par défaut
-    ~DisplayManager();
-
-    bool begin(); // 👈 plus besoin de passer d’adresse I2C
-
-    void update();
-    void setStatus(DisplayStatus status);
-    void setDeviceName(const String &name);
-    void setFirmwareVersion(const String &version);
-
-    void showMessage(const String &message, int duration);
-    void clear();
-    void setBrightness(uint8_t brightness);
-
 private:
+    Adafruit_SSD1306 *display;
+
+    // Configuration écran
     static const int SCREEN_WIDTH = 128;
     static const int SCREEN_HEIGHT = 64;
     static const int OLED_RESET = -1;
     static const uint8_t I2C_ADDRESS = 0x3C;
 
-    Adafruit_SSD1306 *display;
-    DisplayStatus currentStatus;
+    // Variables d'affichage
     unsigned long lastUpdate;
-    int animationCounter;
+    int animationFrame;
+    bool screenOn;
 
-    String deviceName;
-    String firmwareVersion;
+    // Méthodes privées d'affichage
+    void drawProgressBar(int x, int y, int width, int height, int value, int maxValue);
+    void drawScore(int score);
+    void drawIntensity(int intensity);
+    void drawCategory(String category);
+    void drawHeader();
+    void drawNoDetection();
 
-    void drawWaitingConnection();
-    void drawConnectedStatus();
-    void drawErrorStatus();
-
-    void drawLoadingAnimation(int x, int y, int radius);
-    void drawCenteredText(const String &text, int y, int textSize);
-    void drawScrollingText(const String &text, int y, int textSize);
+public:
+    DisplayManager();
+    bool init();
+    void update(FartDetector::DetectionResult result);
+    void clear();
+    void turnOn();
+    void turnOff();
+    void setBrightness(int level); // 0-255
+    void showCalibration();
+    void showStatus(String message);
 };
 
-String removeAccents(const String &input);
-
-#endif // DISPLAY_MANAGER_H
+#endif
