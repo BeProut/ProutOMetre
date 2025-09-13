@@ -10,7 +10,7 @@ VERSION_FILE = 'version'
 VERSION_HEADER = 'Version.h'
 
 
-version_url = "http://localhost:3000/prout-o-metre/firmwares/new-build-version"
+version_url = "http://192.168.0.18:3000/prout-o-metre/firmwares/new-build-version"
 resp = requests.get(version_url)
 resp.raise_for_status()
 VERSION = resp.json()["version"]

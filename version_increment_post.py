@@ -22,7 +22,7 @@ def upload_firmware(source, target, env):
         print(f"[ERROR] Impossible de lire le fichier version: {e}")
         return
     # Upload vers le serveur
-    post_url = "http://localhost:3000/prout-o-metre/firmwares"
+    post_url = "http://192.168.0.18:3000/prout-o-metre/firmwares"
     files = {"firmwareFile": open(firmware_path, "rb")}
     payload = {"version": version, "sha256": sha256}
     r = requests.post(post_url, data=payload, files=files)

@@ -7,7 +7,7 @@
 #include <modules/ota/ota_manager.h>
 
 // Configuration du heartbeat
-static const char *HEARTBEAT_URL = "http://localhost:3000/prout-o-metre/heartbeat";
+static const char *HEARTBEAT_URL = "http://192.168.0.18:3000/prout-o-metre/heartbeat";
 static const unsigned long HEARTBEAT_INTERVAL = 5000; // Envoi toutes les 5 secondes
 static const unsigned long HTTP_TIMEOUT = 3000;       // Timeout de 3 secondes
 
