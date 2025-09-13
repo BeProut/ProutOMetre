@@ -31,5 +31,5 @@ void loop()
   screenManagerProcess();
   sensorBufferProcess(); // Prend un échantillon toutes les 100ms si nécessaire
   otaManagerHandle();
-  delay(10);
+  delay(50);
 }

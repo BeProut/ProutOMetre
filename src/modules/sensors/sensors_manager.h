@@ -28,3 +28,8 @@ float mq135ToPPM(uint16_t analogValue);
 float mq136ToPPM(uint16_t analogValue);
 float mq4ToPPM(uint16_t analogValue);
 float max4466ToDecibels(uint16_t analogValue);
+
+// Fonctions de calibration des capteurs
+float calibrateMQ135(int nSamples);
+float calibrateMQ136(int nSamples);
+float calibrateMQ4(int nSamples);

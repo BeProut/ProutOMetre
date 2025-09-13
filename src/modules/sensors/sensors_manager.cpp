@@ -1,195 +1,192 @@
 #include "sensors_manager.h"
 #include "../../config/pins_config.h"
 
-// Variables pour le filtrage et la stabilisation des lectures
+// ----------------------------
+// CONFIGURATION
+// ----------------------------
+#define DEBUG true
 static unsigned long lastReadTime = 0;
-static const unsigned long READ_INTERVAL = 100; // Lecture toutes les 100ms
+static const unsigned long READ_INTERVAL = 100; // ms
 
-// Variables pour moyenner les lectures (filtre simple)
-static uint16_t mq135Buffer[5] = {0};
-static uint16_t mq136Buffer[5] = {0};
-static uint16_t mq4Buffer[5] = {0};
-static uint16_t max4466Buffer[5] = {0};
-static uint8_t bufferIndex = 0;
-static bool buffersInitialized = false;
+// Variables globales pour R0 calibré
+float r0_mq135 = 76.63;
+float r0_mq136 = 68.25;
+float r0_mq4 = 60.0;
 
+// ----------------------------
+// INITIALISATION
+// ----------------------------
 void sensorsManagerInit()
 {
-    // Configuration des pins en mode analogique (par défaut sur ESP32)
     pinMode(MQ135_PIN, INPUT);
     pinMode(MQ136_PIN, INPUT);
     pinMode(MQ4_PIN, INPUT);
     pinMode(MAX4466_PIN, INPUT);
 
-    // Configuration de la résolution ADC (12 bits par défaut sur ESP32)
-    analogReadResolution(12);
-
     Serial.println("Sensors Manager: Initialisation des capteurs...");
 
-    // Temps de chauffe initial pour les capteurs MQ (recommandé: 20-48h pour une calibration optimale)
-    Serial.println("Sensors Manager: Temps de chauffe des capteurs MQ en cours...");
-
-    // Initialisation des buffers avec les premières lectures
-    for (int i = 0; i < 5; i++)
-    {
-        mq135Buffer[i] = analogRead(MQ135_PIN);
-        mq136Buffer[i] = analogRead(MQ136_PIN);
-        mq4Buffer[i] = analogRead(MQ4_PIN);
-        max4466Buffer[i] = analogRead(MAX4466_PIN);
-        delay(50);
-    }
-    buffersInitialized = true;
+    // Calibration automatique
+    r0_mq135 = calibrateMQ135(50);
+    r0_mq136 = calibrateMQ136(50);
+    r0_mq4 = calibrateMQ4(50);
 
     Serial.println("Sensors Manager: Initialisation terminée");
 }
 
+// ----------------------------
+// CALIBRATION
+// ----------------------------
+float calibrateMQ135(int nSamples = 50)
+{
+    Serial.println("Calibrating MQ135...");
+    float sumRS = 0;
+    for (int i = 0; i < nSamples; i++)
+    {
+        uint16_t adc = analogRead(MQ135_PIN);
+        float voltage = (adc * 3.3) / 4095.0;
+        if (voltage < 0.01)
+            voltage = 0.01;
+        float rs = (3.3 - voltage) / voltage * 1000.0;
+        sumRS += rs;
+        delay(50);
+    }
+    float r0 = sumRS / nSamples / 9.0; // 9 = facteur pour ~400ppm CO2
+    Serial.print("MQ135 calibrated R0 = ");
+    Serial.println(r0, 2);
+    return r0;
+}
+
+float calibrateMQ136(int nSamples = 50)
+{
+    Serial.println("Calibrating MQ136...");
+    float sumRS = 0;
+    for (int i = 0; i < nSamples; i++)
+    {
+        uint16_t adc = analogRead(MQ136_PIN);
+        float voltage = (adc * 3.3) / 4095.0;
+        if (voltage < 0.01)
+            voltage = 0.01;
+        float rs = (3.3 - voltage) / voltage * 1000.0;
+        sumRS += rs;
+        delay(50);
+    }
+    float r0 = sumRS / nSamples / 3.0; // ajuster selon datasheet (~30 ppm)
+    Serial.print("MQ136 calibrated R0 = ");
+    Serial.println(r0, 2);
+    return r0;
+}
+
+float calibrateMQ4(int nSamples = 50)
+{
+    Serial.println("Calibrating MQ4...");
+    float sumRS = 0;
+    for (int i = 0; i < nSamples; i++)
+    {
+        uint16_t adc = analogRead(MQ4_PIN);
+        float voltage = (adc * 3.3) / 4095.0;
+        if (voltage < 0.01)
+            voltage = 0.01;
+        float rs = (3.3 - voltage) / voltage * 1000.0;
+        sumRS += rs;
+        delay(50);
+    }
+    float r0 = sumRS / nSamples / 4.0; // ajuster selon datasheet (~1000 ppm)
+    Serial.print("MQ4 calibrated R0 = ");
+    Serial.println(r0, 2);
+    return r0;
+}
+
+// ----------------------------
+// LECTURE PERIODIQUE
+// ----------------------------
 void sensorsManagerProcess()
 {
     unsigned long currentTime = millis();
-
-    // Lecture périodique pour maintenir les buffers à jour
     if (currentTime - lastReadTime >= READ_INTERVAL)
     {
         lastReadTime = currentTime;
 
-        // Mise à jour des buffers de moyennage
-        bufferIndex = (bufferIndex + 1) % 5;
-        mq135Buffer[bufferIndex] = analogRead(MQ135_PIN);
-        mq136Buffer[bufferIndex] = analogRead(MQ136_PIN);
-        mq4Buffer[bufferIndex] = analogRead(MQ4_PIN);
-        max4466Buffer[bufferIndex] = analogRead(MAX4466_PIN);
+        uint16_t mq135Value = analogRead(MQ135_PIN);
+        uint16_t mq136Value = analogRead(MQ136_PIN);
+        uint16_t mq4Value = analogRead(MQ4_PIN);
+        uint16_t max4466Value = analogRead(MAX4466_PIN);
+
+        float mq135PPM = mq135ToPPM(mq135Value);
+        float mq136PPM = mq136ToPPM(mq136Value);
+        float mq4PPM = mq4ToPPM(mq4Value);
+        float max4466DB = max4466ToDecibels(max4466Value);
+
+        if (DEBUG)
+        {
+            Serial.print("[MQ135] ADC=");
+            Serial.print(mq135Value);
+            Serial.print(" -> PPM=");
+            Serial.println(mq135PPM, 2);
+            Serial.print("[MQ136] ADC=");
+            Serial.print(mq136Value);
+            Serial.print(" -> PPM=");
+            Serial.println(mq136PPM, 2);
+            Serial.print("[MQ4]   ADC=");
+            Serial.print(mq4Value);
+            Serial.print(" -> PPM=");
+            Serial.println(mq4PPM, 2);
+            Serial.print("[MAX4466] ADC=");
+            Serial.print(max4466Value);
+            Serial.print(" -> dB=");
+            Serial.println(max4466DB, 2);
+            Serial.println("------------------------------------------------");
+        }
     }
 }
 
-uint16_t readMQ135Sensor()
+// ----------------------------
+// CONVERSION
+// ----------------------------
+float mq135ToPPM(uint16_t analogValue)
 {
-    if (!buffersInitialized)
-    {
-        return analogRead(MQ135_PIN);
-    }
-
-    // Calcul de la moyenne des 5 dernières lectures
-    uint32_t sum = 0;
-    for (int i = 0; i < 5; i++)
-    {
-        sum += mq135Buffer[i];
-    }
-    return sum / 5;
+    float voltage = (analogValue * 3.3) / 4095.0;
+    if (voltage < 0.01)
+        voltage = 0.01;
+    float rs = (3.3 - voltage) / voltage * 1000.0;
+    float ratio = rs / r0_mq135;
+    return (ratio > 0) ? 116.6020682 * pow(ratio, -2.769034857) : 0;
 }
 
-uint16_t readMQ136Sensor()
+float mq136ToPPM(uint16_t analogValue)
 {
-    if (!buffersInitialized)
-    {
-        return analogRead(MQ136_PIN);
-    }
-
-    uint32_t sum = 0;
-    for (int i = 0; i < 5; i++)
-    {
-        sum += mq136Buffer[i];
-    }
-    return sum / 5;
+    float voltage = (analogValue * 3.3) / 4095.0;
+    if (voltage < 0.01)
+        voltage = 0.01;
+    float rs = (3.3 - voltage) / voltage * 1000.0;
+    float ratio = rs / r0_mq136;
+    return (ratio > 0) ? 30 * pow(ratio, -1.8) : 0;
 }
 
-uint16_t readMQ4Sensor()
+float mq4ToPPM(uint16_t analogValue)
 {
-    if (!buffersInitialized)
-    {
-        return analogRead(MQ4_PIN);
-    }
-
-    uint32_t sum = 0;
-    for (int i = 0; i < 5; i++)
-    {
-        sum += mq4Buffer[i];
-    }
-    return sum / 5;
+    float voltage = (analogValue * 3.3) / 4095.0;
+    if (voltage < 0.01)
+        voltage = 0.01;
+    float rs = (3.3 - voltage) / voltage * 1000.0;
+    float ratio = rs / r0_mq4;
+    return (ratio > 0) ? 1000 * pow(ratio, -2.3) : 0;
 }
 
-uint16_t readMAX4466Sensor()
+float max4466ToDecibels(uint16_t analogValue)
 {
-    if (!buffersInitialized)
-    {
-        return analogRead(MAX4466_PIN);
-    }
-
-    uint32_t sum = 0;
-    for (int i = 0; i < 5; i++)
-    {
-        sum += max4466Buffer[i];
-    }
-    return sum / 5;
+    float voltage = (analogValue * 3.3) / 4095.0;
+    if (voltage < 0.001)
+        voltage = 0.001;
+    float dbValue = 20 * log10(voltage / 1.65);
+    return 50 + dbValue;
 }
 
 SensorData getAllSensorData()
 {
     SensorData data;
-    data.mq135Value = readMQ135Sensor();
-    data.mq136Value = readMQ136Sensor();
-    data.mq4Value = readMQ4Sensor();
-    data.max4466Value = readMAX4466Sensor();
+    data.mq135Value = 0;
+    data.mq136Value = 0;
+    data.mq4Value = 0;
+    data.max4466Value = 0;
     return data;
-}
-
-// Fonctions de conversion (formules approximatives - à calibrer selon vos capteurs)
-float mq135ToPPM(uint16_t analogValue)
-{
-    // Conversion approximative pour MQ135 (CO2)
-    // Formule: PPM = 116.6020682 * ((Rs/R0) ^ -2.769034857)
-    // Ici on utilise une approximation linéaire simple
-    float voltage = (analogValue * 3.3) / 4095.0;
-    float rs = (3.3 - voltage) / voltage * 1000; // Résistance du capteur en ohm
-    float r0 = 76.63;                            // Résistance de référence (à calibrer)
-    float ratio = rs / r0;
-
-    if (ratio <= 0)
-        return 0;
-
-    // Approximation logarithmique
-    return 116.6020682 * pow(ratio, -2.769034857);
-}
-
-float mq136ToPPM(uint16_t analogValue)
-{
-    // Conversion pour MQ136 (H2S)
-    float voltage = (analogValue * 3.3) / 4095.0;
-    float rs = (3.3 - voltage) / voltage * 1000;
-    float r0 = 68.25; // À calibrer
-    float ratio = rs / r0;
-
-    if (ratio <= 0)
-        return 0;
-
-    // Formule approximative pour H2S
-    return 30 * pow(ratio, -1.8);
-}
-
-float mq4ToPPM(uint16_t analogValue)
-{
-    // Conversion pour MQ4 (CH4)
-    float voltage = (analogValue * 3.3) / 4095.0;
-    float rs = (3.3 - voltage) / voltage * 1000;
-    float r0 = 60.0; // À calibrer
-    float ratio = rs / r0;
-
-    if (ratio <= 0)
-        return 0;
-
-    // Formule approximative pour méthane
-    return 1000 * pow(ratio, -2.3);
-}
-
-float max4466ToDecibels(uint16_t analogValue)
-{
-    // Conversion approximative pour MAX4466 en décibels
-    // Le MAX4466 amplifie le signal du microphone
-    float voltage = (analogValue * 3.3) / 4095.0;
-
-    // Conversion approximative en décibels (à calibrer selon votre setup)
-    // Niveau de référence: 1.65V = 0dB relatif
-    float dbValue = 20 * log10(voltage / 1.65);
-
-    // Ajustement pour obtenir des valeurs dB SPL approximatives
-    return 50 + dbValue; // 50dB comme niveau de base
 }
