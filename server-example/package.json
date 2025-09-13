@@ -1,0 +1,30 @@
+{
+    "name": "prout-o-metre-audio-server",
+    "version": "1.0.0",
+    "description": "Serveur de réception des fichiers audio du ProutOMètre",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "enhanced": "node enhanced-server.js",
+        "js-enhanced": "node js-enhanced-server.js",
+        "dev": "nodemon server.js",
+        "dev-enhanced": "nodemon enhanced-server.js",
+        "dev-js": "nodemon js-enhanced-server.js"
+    },
+    "dependencies": {
+        "express": "^4.18.2",
+        "multer": "^1.4.5-lts.1"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.1"
+    },
+    "keywords": [
+        "esp32",
+        "audio",
+        "i2s",
+        "upload",
+        "wav"
+    ],
+    "author": "ProutOMètre Team",
+    "license": "MIT"
+}

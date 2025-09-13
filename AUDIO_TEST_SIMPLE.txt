@@ -1,0 +1,36 @@
+// Version de test ultra-simple pour processAudioData()
+// Remplacez temporairement la fonction dans audio_recorder.cpp
+
+void AudioRecorder::processAudioData()
+{
+    if (!isRecording || !audioFile)
+        return;
+
+    // Vérifier le temps maximum d'enregistrement
+    if (millis() - recordingStartTime > MAX_RECORD_TIME)
+    {
+        Serial.println("[AUDIO] Temps maximum d'enregistrement atteint");
+        stopRecording();
+        return;
+    }
+
+    // Lire les données du microphone I2S
+    esp_err_t result = i2s_read(I2S_PORT, i2sBuffer, I2S_READ_LEN * sizeof(int16_t), &bytesRead, portMAX_DELAY);
+
+    if (result == ESP_OK && bytesRead > 0)
+    {
+        // AUCUN TRAITEMENT - AUDIO BRUT DIRECT
+        // Écrire directement les données I2S dans le fichier
+        size_t bytesWritten = audioFile.write((uint8_t *)i2sBuffer, bytesRead);
+
+        if (bytesWritten != bytesRead)
+        {
+            Serial.println("[AUDIO] Erreur: Écriture incomplète dans le fichier");
+            stopRecording();
+        }
+    }
+    else
+    {
+        Serial.println("[AUDIO] Erreur lors de la lecture I2S: " + String(result));
+    }
+}
